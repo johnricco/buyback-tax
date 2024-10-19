@@ -1,0 +1,26 @@
+{
+    "id": "58C4510F",
+    "path": "~/Repositories/buyback-tax/main.R",
+    "project_path": "main.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1729278238599.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "140,4",
+        "scrollLine": "131"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1729306372,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1729306372767,
+    "read_only": false,
+    "read_only_alternatives": []
+}
