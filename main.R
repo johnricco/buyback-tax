@@ -10,16 +10,6 @@ library(tidyverse)
 # Parameters
 #------------
 
-# Corporate returns and behavior
-real_return    = 0.05
-inflation      = 0.02
-depreciation   = 0.04553728
-share_retained = 0.5
-
-# Characteristics of investors
-share_taxable = 0.5
-years_held    = 8
-share_death   = 0.46
 
 
 #-------------
@@ -33,12 +23,23 @@ calc_metr = function(payout, r, pi, delta, share_retained, share_taxable,
                      share_death, n, tau_corp, tau_bb, tau_div, tau_kg) {
   
   #----------------------------------------------------------------------------
-  #  TODO
+  # Calculates marginal effective tax rate on corporate investment assuming 
+  # specified type of payout (dividends or buyback).
   # 
   # Parameters:
-  # TODO
+  # - r              (dbl) : real rate of return on corporate equity 
+  # - pi             (dbl) : expected inflation rate
+  # - delta          (dbl) : economic depreciation rate
+  # - share_retained (dbl) : share of earnings retained for future investment
+  # - share_taxable  (dbl) : share of corporate equity subject to domestic tax
+  # - share_death    (dbl) : share of gains held until death
+  # - n              (dbl) : holding period for capital gains in years
+  # - tau_corp       (dbl) : corporate tax rate
+  # - tau_bb         (dbl) : buyback excise tax rate
+  # - tau_div        (dbl) : tax rate on dividends
+  # - tau_kg         (dbl) : tax rate on capital gains
   # 
-  # Returns: TODO
+  # Returns: METR and intermediate calculations (dbl[])
   #----------------------------------------------------------------------------
   
   #------
@@ -56,14 +57,18 @@ calc_metr = function(payout, r, pi, delta, share_retained, share_taxable,
   # Investor
   #----------
   
-  # Calculate after-tax return on payout (dividend)
-  s_div = calc_s_div(r, share_taxable, tau_div)
-  
   # Calculate after-tax return on retained earnings
   s_retained = calc_s_retained(r, pi, share_taxable, share_death, tau_kg, n)
   
+  # Calculate after-tax return on payout
+  if (payout == 'div') {
+    s_payout = calc_s_div(r, share_taxable, tau_div)
+  } else {
+    s_payout = s_retained
+  }
+  
   # Average after-tax returns
-  s = s_div * (1 - share_retained) + s_retained * share_retained
+  s = (s_payout * (1 - share_retained)) + (s_retained * share_retained)
 
   
   #---------
@@ -71,14 +76,15 @@ calc_metr = function(payout, r, pi, delta, share_retained, share_taxable,
   #---------
   
   # Calculate marginal effective tax rate
-  metr = (rho - s) / rho 
+  metr = 1 - (s / rho) 
   
   # Return METR and key intermediate calculations 
   return(
     c(
       'rho'        = rho, 
-      's_div'      = s_div,
+      's_payout'   = s_payout,
       's_retained' = s_retained,
+      's'          = s,
       'metr'       = metr
     )
   )
@@ -150,11 +156,8 @@ calc_s_retained = function(r, pi, share_taxable, share_death, tau_kg, n) {
   # Returns: after-tax return on retained earnings (dbl)
   #----------------------------------------------------------------------------
   
-  # Calculate nominal rate of return
-  nominal_r = (1 + r) * (1 + pi) - 1
-  
   # Calculate sales price at end of holding period (relative to basis of $1)
-  price = exp(nominal_r * n)
+  price = exp((r + pi) * n)
   
   # Calculate effective tax rate, accounting for step up and capital gains
   etr = share_taxable * (1 - share_death) * tau_kg
@@ -162,11 +165,8 @@ calc_s_retained = function(r, pi, share_taxable, share_death, tau_kg, n) {
   # Calculate tax liability
   tax = (price - 1) * etr
   
-  # Calculate nominal annualized real after-tax rate of return  
-  nominal_s_retained = log(price - tax) / n
-  
-  # Deflate and return
-  return((1 + nominal_s_retained) / (1 + pi) - 1)
+  # Calculate real annualized real after-tax rate of return  
+  return((log(price - tax) / n) - pi)
 }
 
 
