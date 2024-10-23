@@ -1,26 +1,26 @@
 {
-    "id": "58C4510F",
-    "path": "~/Repositories/buyback-tax/main.R",
-    "project_path": "main.R",
+    "id": "0CFF76CE",
+    "path": "~/Repositories/buyback-tax/src/sim.R",
+    "project_path": "src/sim.R",
     "type": "r_source",
-    "hash": "1308041503",
+    "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1729278238599.0,
+    "created": 1729640788161.0,
     "source_on_save": false,
-    "relative_order": 1,
+    "relative_order": 2,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "14,0",
-        "scrollLine": "0"
+        "cursorPosition": "43,0",
+        "scrollLine": "19"
     },
     "folds": "",
-    "lastKnownWriteTime": 1729555887,
+    "lastKnownWriteTime": 1729644208,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1729555887563,
+    "last_content_update": 1729644208989,
     "read_only": false,
     "read_only_alternatives": []
 }

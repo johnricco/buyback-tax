@@ -6,9 +6,6 @@
 
 library(tidyverse)
 
-#------------
-# Parameters
-#------------
 
 
-
+source('./')

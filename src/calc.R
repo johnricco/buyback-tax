@@ -6,7 +6,7 @@
 
 
 
-calc_metr = function(payout, r, pi, delta, share_retained, share_taxable, 
+calc_metr = function(payout, r, pi, delta, z, share_retained, share_taxable, 
                      share_death, n, tau_corp, tau_bb, tau_div, tau_kg) {
   
   #----------------------------------------------------------------------------
@@ -18,6 +18,7 @@ calc_metr = function(payout, r, pi, delta, share_retained, share_taxable,
   # - r              (dbl) : real rate of return on corporate equity 
   # - pi             (dbl) : expected inflation rate
   # - delta          (dbl) : economic depreciation rate
+  # - z              (dbl) : present value of depreciation deductions
   # - share_retained (dbl) : share of earnings retained for future investment
   # - share_taxable  (dbl) : share of corporate equity subject to domestic tax
   # - share_death    (dbl) : share of gains held until death
@@ -35,10 +36,10 @@ calc_metr = function(payout, r, pi, delta, share_retained, share_taxable,
   #------
   
   # Calculate effect of corporate taxes on required rate of return
-  tax_gross_up = calc_tax_gross_up(payout, tau_corp, tau_bb, share_retained)
+  tax_gross_up = calc_tax_gross_up(payout, tau_corp, z, tau_bb, share_retained)
   
   # Calculate required before-tax rate of return
-  rho = r * tax_gross_up
+  rho = (r + delta) * tax_gross_up - delta
   
   
   #----------
@@ -81,15 +82,16 @@ calc_metr = function(payout, r, pi, delta, share_retained, share_taxable,
 
 
 
-calc_tax_gross_up = function(payout, tau_corp, tau_bb, share_retained) {
+calc_tax_gross_up = function(payout, tau_corp, z, tau_bb, share_retained) {
   
   #----------------------------------------------------------------------------
   # Calculates gross-up factor reflecting the effect of tax policy on the 
   # required before-tax rate of return. 
   # 
   # Parameters:
-  # - payout         (str) : payout type ('div' or 'bb')   
+  # - payout         (str) : payout type ('div' or 'bb')
   # - tau_corp       (dbl) : corporate tax rate
+  # - z              (dbl) : present value of depreciation deductions
   # - tau_bb         (dbl) : buyback excise tax rate
   # - share_retained (dbl) : share of earnings retained for future investment
   # 
@@ -97,7 +99,7 @@ calc_tax_gross_up = function(payout, tau_corp, tau_bb, share_retained) {
   #----------------------------------------------------------------------------
   
   # Calculate gross-up factor
-  t = 1 / (1 - tau_corp)
+  t = (1 - (tau_corp * z)) / (1 - tau_corp)
   
   # Adjust for buyback tax
   t = t * if_else(payout == 'bb', 1 + share_retained * (1 / (1 - tau_bb) - 1), 1) 
