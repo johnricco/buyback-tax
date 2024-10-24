@@ -42,3 +42,5 @@ run_sensitivity = function(r, pi, delta, z, share_retained, share_taxable,
     return()
 }
 
+
+# TODO algorthim to find parity bb rate given other factors

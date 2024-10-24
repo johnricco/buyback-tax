@@ -35,11 +35,15 @@ calc_metr = function(payout, r, pi, delta, z, share_retained, share_taxable,
   # Firm
   #------
   
-  # Calculate effect of corporate taxes on required rate of return
-  tax_gross_up = calc_tax_gross_up(payout, tau_corp, z, tau_bb, share_retained)
-  
   # Calculate required before-tax rate of return
-  rho = (r + delta) * tax_gross_up - delta
+  rho = ((r + delta) * (1 - tau_corp * z)) / (1 - tau_corp) - delta
+  
+  # Add buyback tax 
+  bb_effect = 0
+  if (payout == 'bb') {
+    bb_effect = r * (1 / (1 - (1 - share_retained) * tau_bb) - 1)
+  }
+  rho = rho + bb_effect
   
   
   #----------
@@ -47,13 +51,18 @@ calc_metr = function(payout, r, pi, delta, z, share_retained, share_taxable,
   #----------
   
   # Calculate after-tax return on retained earnings
-  s_retained = calc_s_retained(r, pi, share_taxable, share_death, tau_kg, n)
+  s_retained = calc_s_kg(r, pi, share_taxable, share_death, tau_kg, n)
   
-  # Calculate after-tax return on payout
+  # Calculate after-tax return on payout: dividend
   if (payout == 'div') {
     s_payout = calc_s_div(r, share_taxable, tau_div)
+  
+  # Calculate after-tax return on payout: dividend
   } else {
-    s_payout = s_retained
+    share_sell = (exp(r + pi) - 1) / exp(r + pi)
+    s_sell     = calc_s_kg(r, 0, share_taxable, share_death, tau_kg, 1)
+    s_hold     = calc_s_kg(r, 0, share_taxable, share_death, tau_kg, n)
+    s_payout   = (s_sell * share_sell) + (s_hold * (1 - share_sell))
   }
   
   # Average after-tax returns
@@ -65,7 +74,7 @@ calc_metr = function(payout, r, pi, delta, z, share_retained, share_taxable,
   #---------
   
   # Calculate marginal effective tax rate
-  metr = 1 - (s / rho) 
+  metr = 1 - (s / rho)
   
   # Return METR and key intermediate calculations 
   return(
@@ -78,35 +87,6 @@ calc_metr = function(payout, r, pi, delta, z, share_retained, share_taxable,
     )
   )
 }
-
-
-
-
-calc_tax_gross_up = function(payout, tau_corp, z, tau_bb, share_retained) {
-  
-  #----------------------------------------------------------------------------
-  # Calculates gross-up factor reflecting the effect of tax policy on the 
-  # required before-tax rate of return. 
-  # 
-  # Parameters:
-  # - payout         (str) : payout type ('div' or 'bb')
-  # - tau_corp       (dbl) : corporate tax rate
-  # - z              (dbl) : present value of depreciation deductions
-  # - tau_bb         (dbl) : buyback excise tax rate
-  # - share_retained (dbl) : share of earnings retained for future investment
-  # 
-  # Returns: gross-up factor (dbl)
-  #----------------------------------------------------------------------------
-  
-  # Calculate gross-up factor
-  t = (1 - (tau_corp * z)) / (1 - tau_corp)
-  
-  # Adjust for buyback tax
-  t = t * if_else(payout == 'bb', 1 + share_retained * (1 / (1 - tau_bb) - 1), 1) 
-  
-  return(t)
-}
-
 
 
 
@@ -129,11 +109,12 @@ calc_s_div = function(r, share_taxable, tau_div) {
 
 
 
-calc_s_retained = function(r, pi, share_taxable, share_death, tau_kg, n) {
+calc_s_kg = function(r, pi, share_taxable, share_death, tau_kg, n) {
   
   #----------------------------------------------------------------------------
-  # Calculates after-tax return on retained earnings ("s", per CBO's CapTax
-  # notation, for capital gains attributable to non-payment to shareholders).
+  # Calculates after-tax return on capital gains ("s", per CBO's CapTax
+  # notation, for capital gains attributable to either non-payment of
+  # profits or sales induced by buybacks).
   # 
   # Parameters:
   # - r             (dbl) : real rate of return on corporate equity 

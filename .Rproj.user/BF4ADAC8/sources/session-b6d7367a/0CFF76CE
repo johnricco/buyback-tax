@@ -3,7 +3,7 @@
     "path": "~/Repositories/buyback-tax/src/sim.R",
     "project_path": "src/sim.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "3035420877",
     "contents": "",
     "dirty": false,
     "created": 1729640788161.0,
@@ -12,15 +12,15 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "43,0",
-        "scrollLine": "19"
+        "cursorPosition": "45,59",
+        "scrollLine": "24"
     },
     "folds": "",
-    "lastKnownWriteTime": 1729644208,
+    "lastKnownWriteTime": 1729791928,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1729644208989,
+    "last_content_update": 1729791928445,
     "read_only": false,
     "read_only_alternatives": []
 }
