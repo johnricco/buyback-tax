@@ -18,21 +18,37 @@ source('./src/sim.R')
 
 
 
-# test
-run_sensitivity(0.06, 0.02, 0.04, 0.85, 0.8, 0.4, 0.43, 8, 0, seq(0, 0.05, 0.0005), 0.21, 0.21) %>% 
-  group_by(n) %>% 
-  filter(metr_diff <= 0) %>% 
-  slice(1) %>% 
-  ungroup() %>% 
-  ggplot(aes(x = n, y = tau_bb)) +
-  geom_line() + 
-  geom_point()
 
-  
-    
-  
-  # pivot_longer(cols = c(metr_div, metr_bb)) %>% 
-  # ggplot(aes(x = tau_bb, y = value, colour = name)) + 
-  # geom_point() + 
-  # geom_line() + 
-  # facet_wrap(~n)
+
+
+
+
+
+
+
+# expand_grid(
+#   share_buybacks = seq(0, 1, 0.01), 
+#   share_retained = seq(0, 1, 0.01)
+# ) %>% 
+#   mutate(
+#     share_dividends = 1 - share_buybacks, 
+#     share_new_issuance = 1 - share_retained,
+#     buyback_factor = ((share_dividends + ((share_buybacks * share_new_issuance) + (share_buybacks * share_retained) / (1 - 0.01)) - 1) / 0.01)
+#   ) %>% 
+#   ggplot(aes(x = share_retained, y = share_dividends, fill = buyback_factor)) + 
+#   geom_tile() + 
+#   theme_classic() + 
+#   scale_fill_gradient(low = 'white', high = '#e34b4b') + 
+#   labs(y = 'Use of profits: share dividends (vs buybacks)', 
+#        x = 'Source of funds: share retained earnings (vs new issuance)', 
+#        fill = 'Effect of buyback tax') + 
+#   geom_hline(yintercept = 0.5) + 
+#   geom_vline(xintercept = 0.5) + 
+#   annotate('text', x = 0.25, y = 0.25, label = 'Source: new issuance \n Use: buybacks') + 
+#   annotate('text', x = 0.25, y = 0.75, label = 'Source: new issuance \n Use: dividends') + 
+#   annotate('text', x = 0.75, y = 0.25, label = 'Source: retained earnings \n Use: buybacks') + 
+#   annotate('text', x = 0.75, y = 0.75, label = 'Source: retained earnings \n Use: dividends') + 
+#   scale_x_continuous(labels = scales::percent_format()) + 
+#   scale_y_continuous(labels = scales::percent_format())
+# 
+

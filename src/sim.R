@@ -5,42 +5,22 @@
 #------------------------------------------------------------------------------
 
 
-run_sensitivity = function(r, pi, delta, z, share_retained, share_taxable, 
-                           share_death, n, tau_corp, tau_bb, tau_div, tau_kg) {
-  
-  #----------------------------------------------------------------------------
-  # TODO
-  # 
-  # Parameters: (all can be vectors)
-  # - r              (dbl) : real rate of return on corporate equity 
-  # - pi             (dbl) : expected inflation rate
-  # - delta          (dbl) : economic depreciation rate
-  # - z              (dbl) : present value of depreciation deductions
-  # - share_retained (dbl) : share of earnings retained for future investment
-  # - share_taxable  (dbl) : share of corporate equity subject to domestic tax
-  # - share_death    (dbl) : share of gains held until death
-  # - n              (dbl) : holding period for capital gains in years
-  # - tau_corp       (dbl) : corporate tax rate
-  # - tau_bb         (dbl) : buyback excise tax rate
-  # - tau_div        (dbl) : tax rate on dividends
-  # - tau_kg         (dbl) : tax rate on capital gains
-  # 
-  # Returns: TODO
-  #----------------------------------------------------------------------------
-  
-  # Generate combos of parameters
-  expand_grid(r, pi, delta, z, share_retained, share_taxable, share_death, n, tau_corp, tau_bb, tau_div, tau_kg) %>% 
-    
-    # Calculate METRs and tax differential
-    rowwise() %>% 
-    mutate(
-      metr_div  = calc_metr('div', r, pi, delta, z, share_retained, share_taxable, share_death, n, tau_corp, tau_bb, tau_div, tau_kg)['metr'], 
-      metr_bb   = calc_metr('bb',  r, pi, delta, z, share_retained, share_taxable, share_death, n, tau_corp, tau_bb, tau_div, tau_kg)['metr'], 
-      metr_diff = metr_div - metr_bb
-    ) %>% 
-    ungroup() %>% 
-    return()
-}
-
-
-# TODO algorthim to find parity bb rate given other factors
+expand_grid(
+    r             = 0.06, 
+    pi            = 0.02, 
+    delta         = 0.04, 
+    z             = 0.85,  
+    m             = 0.5, 
+    phi           = c(0, 1), 
+    share_taxable = 0.4, 
+    share_death   = 0.4, 
+    n             = 8, 
+    tau_corp      = 0.21, 
+    tau_bb        = seq(0, 0.06, 0.01),
+    tau_div       = 0.2, 
+    tau_kg        = 0.2
+  ) %>% 
+  calc_metr() %>%
+  ggplot(aes(x = tau_bb, y = metr, colour = as.factor(phi))) + 
+  geom_line() +
+  geom_point()
