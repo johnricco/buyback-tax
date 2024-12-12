@@ -28,7 +28,7 @@ calc_metr = function(df) {
   #   - tau_div        (dbl) : tax rate on dividends
   #   - tau_kg         (dbl) : tax rate on capital gains
   # 
-  # Returns: tibble with METR and intermediate calculations (df)
+  # Returns: tibble with METR and intermediate calculations (df).
   #----------------------------------------------------------------------------
   
   df %>% 
@@ -89,4 +89,65 @@ calc_metr = function(df) {
     ) %>% 
     return()
 }
+
+
+
+calc_bb_differential = function(df) {
+  
+  #----------------------------------------------------------------------------
+  # Calculates tax differential between buybacks and dividends conditional, 
+  # all else equal.
+  #
+  # Parameters:
+  # - df (df) : tibble with variables described in calc_metr()
+  #
+  # Returns: tibble with tax differential between buybacks and dividends (df).
+  #----------------------------------------------------------------------------
+  
+  # Calculate METRs under both buyback (phi = 1) and dividend (phi = 0) cases
+  bb = df %>% 
+    mutate(phi = 1) %>% 
+    calc_metr() 
+  div = df %>% 
+    mutate(phi = 0) %>% 
+    calc_metr()
+  
+  # Calculate differential and return
+  df %>% 
+    mutate(
+      phi = NA, 
+      bb_differential = bb$metr - div$metr
+    ) %>% 
+    return()
+}
+
+
+calc_bb_tax_effect = function(df) {
+  
+  #----------------------------------------------------------------------------
+  # Calculates effect of the buyback excise tax on the buyback-dividend tax 
+  # differential at the margin. In other words, the partial derivative of the 
+  # differential with respect to the buyback excise rate.
+  # 
+  # Parameters:
+  # - df (df) : tibble with variables described in calc_metr()
+  #   
+  # Returns: tibble with column for the marginal buyback tax effect (df).
+  #----------------------------------------------------------------------------
+  
+  # Calculate actual differential
+  actual = df %>%
+    calc_bb_differential()
+  
+  # Calculate differential after a small increment
+  marginal = df %>% 
+    mutate(tau_bb = tau_bb + .001) %>% 
+    calc_bb_differential()
+  
+  # Calculate effect as scaled difference
+  df %>% 
+    mutate(bb_tax_effect = (marginal$bb_differential - actual$bb_differential) * 10) %>% 
+    return()
+}
+
 

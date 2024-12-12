@@ -4,23 +4,41 @@
 # TODO
 #------------------------------------------------------------------------------
 
+baseline_param_values = tibble(
+  r             = 0.05, 
+  pi            = 0.02, 
+  delta         = 0.04, 
+  z             = 0.85 ,  
+  m             = 0.5, 
+  phi           = 0.6, 
+  share_taxable = 0.4, 
+  share_death   = 0.4, 
+  n             = 8, 
+  tau_corp      = 0.21, 
+  tau_bb        = 0.01,
+  tau_div       = 0.238, 
+  tau_kg        = 0.238
+)
+
+
+
+calc_sensitivity = function(new_values) {
+  baseline_param_values %>% 
+    select(-all_of(colnames(new_values))) %>% 
+    expand_grid(new_values) %>% 
+    calc_bb_differential() %>%
+    calc_bb_tax_effect() %>% 
+    return()
+}
 
 expand_grid(
-    r             = 0.06, 
-    pi            = 0.02, 
-    delta         = 0.04, 
-    z             = 0.85,  
-    m             = 0.5, 
-    phi           = c(0, 1), 
-    share_taxable = 0.4, 
-    share_death   = 0.4, 
-    n             = 8, 
-    tau_corp      = 0.21, 
-    tau_bb        = seq(0, 0.06, 0.01),
-    tau_div       = 0.2, 
-    tau_kg        = 0.2
-  ) %>% 
-  calc_metr() %>%
-  ggplot(aes(x = tau_bb, y = metr, colour = as.factor(phi))) + 
+  share_taxable = c(0, 1),
+  m = seq(0, 1, 0.01)
+) %>% 
+  calc_sensitivity() %>% 
+  ggplot(aes(x = m, y = bb_differential, colour = as.factor(share_taxable))) +
   geom_line() +
-  geom_point()
+  geom_hline(yintercept = 0) + 
+  theme_bw()
+
+
