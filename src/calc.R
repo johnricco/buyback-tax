@@ -69,13 +69,13 @@ calc_metr = function(df) {
         ((1 - m) * (1 - phi) * s_div) +
         
         # Financed by new issuance, paid out as buybacks
-        ((1 - m) * (phi) * s_bb) + 
+        ((1 - m) * phi * s_bb) + 
         
         # Financed by retained earnings, paid out as dividends
-        ((m) * (1 - phi) * s_kg) + 
+        (m * (1 - phi) * s_kg) + 
         
         # Financed by retained earnings, paid out as buybacks
-        ((m) * (phi) * s_kg)
+        (m * phi * s_kg)
       
       ),
 
@@ -149,5 +149,4 @@ calc_bb_tax_effect = function(df) {
     mutate(bb_tax_effect = (marginal$bb_differential - actual$bb_differential) * 10) %>% 
     return()
 }
-
 
