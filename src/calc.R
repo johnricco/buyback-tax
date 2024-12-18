@@ -60,7 +60,7 @@ calc_metr = function(df) {
       s_bb = (share_bb_immediate * s_bb_immediate) + ((1 - share_bb_immediate) * s_kg),
       
       # Calculate after-tax return on dividends
-      s_div = r * (1 - share_taxable * tau_div),
+      s_div = (r + pi) * (1 - share_taxable * tau_div) - pi,
       
       # Calculate weighted average after-tax return
       s = (
