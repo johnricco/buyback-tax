@@ -24,7 +24,7 @@ baseline_param_values = tibble(
 
 
 
-calc_sensitivity = function(new_values) {
+calc_sensitivity = function(new_values, type) {
   
   #----------------------------------------------------------------------------
   # Calculates tax rate metrics across a user-supplied range of non-baseline 
@@ -32,17 +32,33 @@ calc_sensitivity = function(new_values) {
   # 
   # Parameters:
   # - new_values (df) : tibble of new values for one or more parameters
+  # - type      (str) : 'avg' or 'diff', per calc_metr() argument
   #   
   # Returns: tibble of tax rate metrics across all combinations of specified 
   #          parameter values (df).
   #----------------------------------------------------------------------------
   
-  baseline_param_values %>% 
+  # Prepare input data
+  input_data = baseline_param_values %>% 
     select(-all_of(colnames(new_values))) %>% 
-    expand_grid(new_values) %>% 
-    calc_bb_differential() %>%
-    calc_bb_tax_effect() %>% 
-    return()
+    expand_grid(new_values)
+  
+  # Buyback-dividend differential  
+  if (type == 'diff') {
+    input_data %>% 
+      calc_bb_differential() %>% 
+      return()
+    
+  # Effect of the buyback excise tax on the overall METR
+  } else if (type == 'avg') {
+    input_data %>% 
+      calc_bb_tax_effect() %>% 
+      return()
+  
+  # Invalid input  
+  } else {
+    return(NA)
+  }
 }
 
 

@@ -6,7 +6,7 @@
 
 
 
-calc_metr = function(df) {
+calc_metr = function(df, type) {
   
   #----------------------------------------------------------------------------
   # Calculates marginal effective tax rate on the marginal corporate 
@@ -27,6 +27,9 @@ calc_metr = function(df) {
   #   - tau_bb         (dbl) : buyback excise tax rate
   #   - tau_div        (dbl) : tax rate on dividends
   #   - tau_kg         (dbl) : tax rate on capital gains
+  # - type (str) : 'avg' if calculating an overall METR where phi is set at or
+  #                near its baseline value; 'diff' if calculating a tax rate
+  #                differential exercise in which phi takes a value of 0 or 1
   # 
   # Returns: tibble with METR and intermediate calculations (df).
   #----------------------------------------------------------------------------
@@ -69,7 +72,11 @@ calc_metr = function(df) {
         ((1 - m) * (1 - phi) * s_div) +
         
         # Financed by new issuance, paid out as buybacks
-        ((1 - m) * phi * s_bb) + 
+        ((1 - m) * phi * case_when(
+          type == 'diff' ~ s_bb,
+          type == 'avg'  ~ s_kg,
+          T              ~ NA
+        )) + 
         
         # Financed by retained earnings, paid out as dividends
         (m * (1 - phi) * s_kg) + 
@@ -107,10 +114,10 @@ calc_bb_differential = function(df) {
   # Calculate METRs under both buyback (phi = 1) and dividend (phi = 0) cases
   bb = df %>% 
     mutate(phi = 1) %>% 
-    calc_metr() 
+    calc_metr(type = 'diff') 
   div = df %>% 
     mutate(phi = 0) %>% 
-    calc_metr()
+    calc_metr(type = 'diff')
   
   # Calculate differential and return
   df %>% 
@@ -122,31 +129,26 @@ calc_bb_differential = function(df) {
 }
 
 
+
 calc_bb_tax_effect = function(df) {
   
   #----------------------------------------------------------------------------
-  # Calculates effect of the buyback excise tax on the buyback-dividend tax 
-  # differential at the margin. In other words, the partial derivative of the 
-  # differential with respect to the buyback excise rate.
+  # Calculates effect of the 1% buyback excise tax on the METR for a given set
+  # of all-else-equal parameters.
   # 
   # Parameters:
   # - df (df) : tibble with variables described in calc_metr()
   #   
-  # Returns: tibble with column for the marginal buyback tax effect (df).
+  # Returns: tibble with column for the buyback tax effect (df).
   #----------------------------------------------------------------------------
   
-  # Calculate actual differential
-  actual = df %>%
-    calc_bb_differential()
+  # Calculate METRs under 0% and 1% excise taxes
+  zero_percent = calc_metr(df %>% mutate(tau_bb = 0),    'avg')$metr
+  one_percent  = calc_metr(df %>% mutate(tau_bb = 0.01), 'avg')$metr
   
-  # Calculate differential after a small increment
-  marginal = df %>% 
-    mutate(tau_bb = tau_bb + .001) %>% 
-    calc_bb_differential()
-  
-  # Calculate effect as scaled difference
+  # Calculate difference, add to data, and return
   df %>% 
-    mutate(bb_tax_effect = (marginal$bb_differential - actual$bb_differential) * 10) %>% 
+    mutate(bb_tax_effect = one_percent - zero_percent) %>% 
     return()
 }
 
