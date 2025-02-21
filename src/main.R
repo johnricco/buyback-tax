@@ -5,50 +5,64 @@
 #------------------------------------------------------------------------------
 
 library(tidyverse)
-
-
-
 source('./src/calc.R')
-source('./src/sim.R')
+
+# Read depreciation parameters
+depreciation_params = read_csv('./resources/depreciation.csv')
+
+# Set baseline parameter values
+baseline_param_values = tibble(
+  y             = 0,
+  r             = 0.0821 - 0.0224, 
+  pi            = 0.0224, 
+  delta         = depreciation_params %>% filter(asset_type == 'All') %>% pull(delta), 
+  z             = depreciation_params %>% filter(asset_type == 'All') %>% pull(z),  
+  b             = 0.958,
+  m             = 0.5, 
+  phi           = 0.6, 
+  share_taxable = 0.42, 
+  share_death   = 0.4316, 
+  n             = 9.1096 * (1 - 0.4316 - 0.0286) / (1 - 0.4316) + 0.345 * 0.0286 / (1 - 0.4316), 
+  tau_corp      = 0.21, 
+  tau_bb        = 0.01,
+  tau_div       = 0.2041, 
+  tau_kg        = 0.2041, 
+  tau_i         = 0.2816
+)
+
+
+# Effect of buyback tax on equity-finance METR
+baseline_param_values %>%
+  calc_bb_tax_effect() %>% 
+  pivot_longer(cols = everything()) %>% 
+  print(n = 20)
+
+# Buyback-dividend differential
+tibble(tau_bb = seq(0, 0.04, 0.01)) %>% 
+  calc_sensitivity(type = 'bb_diff') %>% 
+  pivot_longer(cols = -tau_bb) %>% 
+  pivot_wider(names_from = tau_bb) %>% 
+  print(n = 20)
+
+# Debt-equity differential  
+tibble(tau_bb = c(0, 0.01)) %>% 
+  calc_sensitivity(type = 'debt_diff') %>% 
+  pivot_longer(cols = -tau_bb) %>% 
+  pivot_wider(names_from = tau_bb) %>% 
+  print(n = 20)
+
+# Effect of 
+depreciation_params %>%
+  select(-asset_type) %>% 
+  calc_sensitivity('avg') %>% 
+  mutate(asset_type = depreciation_params$asset_type, .before = everything()) %>% 
+  arrange(-bb_tax_effect) %>%
+  mutate(bb_tax_effect_relative = bb_tax_effect / metr_without) %>% 
+  pivot_longer(cols = -asset_type) %>% 
+  pivot_wider(names_from = asset_type) %>% 
+  print(n = 20)
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-# expand_grid(
-#   share_buybacks = seq(0, 1, 0.01), 
-#   share_retained = seq(0, 1, 0.01)
-# ) %>% 
-#   mutate(
-#     share_dividends = 1 - share_buybacks, 
-#     share_new_issuance = 1 - share_retained,
-#     buyback_factor = ((share_dividends + ((share_buybacks * share_new_issuance) + (share_buybacks * share_retained) / (1 - 0.01)) - 1) / 0.01)
-#   ) %>% 
-#   ggplot(aes(x = share_retained, y = share_dividends, fill = buyback_factor)) + 
-#   geom_tile() + 
-#   theme_classic() + 
-#   scale_fill_gradient(low = 'white', high = '#e34b4b') + 
-#   labs(y = 'Use of profits: share dividends (vs buybacks)', 
-#        x = 'Source of funds: share retained earnings (vs new issuance)', 
-#        fill = 'Effect of buyback tax') + 
-#   geom_hline(yintercept = 0.5) + 
-#   geom_vline(xintercept = 0.5) + 
-#   annotate('text', x = 0.25, y = 0.25, label = 'Source: new issuance \n Use: buybacks') + 
-#   annotate('text', x = 0.25, y = 0.75, label = 'Source: new issuance \n Use: dividends') + 
-#   annotate('text', x = 0.75, y = 0.25, label = 'Source: retained earnings \n Use: buybacks') + 
-#   annotate('text', x = 0.75, y = 0.75, label = 'Source: retained earnings \n Use: dividends') + 
-#   scale_x_continuous(labels = scales::percent_format()) + 
-#   scale_y_continuous(labels = scales::percent_format())
-# 
 
