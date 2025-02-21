@@ -48,7 +48,7 @@ calc_metr = function(df, type) {
       cit_gross_up = (1 - tau_corp * z) / (1 - tau_corp),
       
       # Calculate gross-up term for buyback tax 
-      bb_gross_up = (1 - phi) + (phi * (1 - m)) + ((phi * m) / (1 - tau_bb)),
+      bb_gross_up = (1 - phi) + (phi * (1 - m)) + ((phi * m) / (1 - (tau_bb * (1 - y)))),
       
       # Calculate required before-tax rate of return
       rho = ((r + delta) * cit_gross_up * bb_gross_up) - delta,
