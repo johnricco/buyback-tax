@@ -15,7 +15,7 @@ calc_metr = function(df, type) {
   # Parameters:
   # - df               (df)  : tibble with the following variables: 
   #   - y              (dbl) : share of investment financed by debt
-  #   - r              (dbl) : real rate of return on corporate equity 
+  #   - r              (dbl) : real rate of return on corporate equity (assumed to be the same for debt)
   #   - pi             (dbl) : expected inflation rate
   #   - delta          (dbl) : economic depreciation rate
   #   - z              (dbl) : present value of depreciation deductions
@@ -44,6 +44,9 @@ calc_metr = function(df, type) {
       # Firm
       #------
       
+      # Calculate firm's real discount rate based on financing mix
+      r_prime   = (1 - y) * r + y * ((r + pi) * (1 - tau_corp * b) - pi),
+      
       # Calculate gross-up term for corporate tax 
       cit_gross_up = (1 - tau_corp * z) / (1 - tau_corp),
       
@@ -51,11 +54,7 @@ calc_metr = function(df, type) {
       bb_gross_up = (1 - phi) + (phi * (1 - m)) + ((phi * m) / (1 - (tau_bb * (1 - y)))),
       
       # Calculate required before-tax rate of return
-      rho = ((r + delta) * cit_gross_up * bb_gross_up) - delta,
-      
-      # Adjust for financing mix
-      debt_subsidy = ((r + pi) * tau_corp * b) / (1 - tau_corp),
-      rho = rho - (y * debt_subsidy), 
+      rho = (r_prime + delta) * cit_gross_up * bb_gross_up - delta,
       
       #-------
       # Saver
@@ -65,9 +64,9 @@ calc_metr = function(df, type) {
       s_e_kg = log(1 + (exp((r + pi) * n) - 1) * (1 - ((1 - share_death) * share_taxable * tau_kg))) / n - pi,
       
       # Calculate after-tax return on buybacks
-      s_e_bb_immediate     = (r + pi) * (1 - (share_taxable * tau_kg)) - pi,
+      s_e_bb_immediate = (r + pi) * (1 - (share_taxable * tau_kg)) - pi,
       share_bb_immediate = (exp(r + pi) - 1) / exp(r + pi),
-      s_e_bb = (share_bb_immediate * s_e_bb_immediate) + ((1 - share_bb_immediate) * s_e_kg),
+      s_e_bb = share_bb_immediate * s_e_bb_immediate + (1 - share_bb_immediate) * s_e_kg,
       
       # Calculate after-tax return on dividends
       s_e_div = (r + pi) * (1 - share_taxable * tau_div) - pi,
@@ -94,10 +93,10 @@ calc_metr = function(df, type) {
       ),
 
       # Calculate after-tax return on debt
-      s_d = ((r + pi) * (1 - tau_i * share_taxable)) - pi,
+      s_d = (r + pi) * (1 - tau_i * share_taxable) - pi,
       
       # Calculate overall average after-tax return 
-      s = ((1 - y) * s_e) + (y * s_d),
+      s = (1 - y) * s_e + y * s_d,
       
       #------
       # METR
