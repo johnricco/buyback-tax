@@ -13,23 +13,24 @@ calc_metr = function(df, type) {
   # investment.
   # 
   # Parameters:
-  # - df               (df)  : tibble with the following variables: 
-  #   - y              (dbl) : share of investment financed by debt
-  #   - r              (dbl) : real rate of return on corporate equity (assumed to be the same for debt)
-  #   - pi             (dbl) : expected inflation rate
-  #   - delta          (dbl) : economic depreciation rate
-  #   - z              (dbl) : present value of depreciation deductions
-  #   - b              (dbl) : share of interest that is deductible 
-  #   - m              (dbl) : share of investment financed by retained earnings
-  #   - phi            (dbl) : share of distributions structured as buybacks 
-  #   - share_taxable  (dbl) : share of equity subject to domestic tax
-  #   - share_death    (dbl) : share of gains held until death
-  #   - n              (dbl) : holding period for capital gains in years
-  #   - tau_corp       (dbl) : corporate tax rate
-  #   - tau_bb         (dbl) : buyback excise tax rate
-  #   - tau_div        (dbl) : tax rate on dividends
-  #   - tau_kg         (dbl) : tax rate on capital gains
-  #   - tau_i          (dbl) : tax rate on interest income
+  # - df (df)  : tibble with the following variables: 
+  #   - legal_form    (str) : 'corp' (C corporation) or 'pt' (pass-through)
+  #   - financing     (str) : 'equity' or 'debt' or 'avg'
+  #   - r             (dbl) : real rate of return
+  #   - pi            (dbl) : expected inflation rate
+  #   - discount_rate (dlb) : r + pi, adjusted for tax treatment of debt financing 
+  #   - delta         (dbl) : economic depreciation rate
+  #   - z             (dbl) : present value of depreciation deductions
+  #   - m             (dbl) : share of investment financed by retained earnings
+  #   - phi           (dbl) : share of distributions structured as buybacks 
+  #   - share_taxable (dbl) : share of C-corp equity subject to tax
+  #   - share_death   (dbl) : share of gains held until death
+  #   - n             (dbl) : holding period for capital gains in years
+  #   - tau_entity    (dbl) : corporate tax rate for C-corp financing; average effective marginal rate on pass-through income otherwise
+  #   - tau_bb        (dbl) : buyback excise tax rate
+  #   - tau_div       (dbl) : tax rate on dividends
+  #   - tau_kg        (dbl) : tax rate on capital gains
+  #   - tau_i         (dbl) : tax rate on interest income
   # - type (str) : 'avg' if calculating an overall METR where phi is set at or
   #                near its baseline value; 'bb_diff' if calculating a tax rate
   #                differential exercise in which phi takes a value of 0 or 1
@@ -40,25 +41,31 @@ calc_metr = function(df, type) {
   df %>% 
     mutate(
       
+      # Set variable for debt share of financing 
+      y = case_when(
+        financing == 'equity' ~ 0, 
+        financing == 'debt'   ~ 1, 
+        financing == 'avg'    ~ 0.3
+      ),
+      
       #------
       # Firm
       #------
       
-      # Calculate firm's real discount rate based on financing mix
-      r_prime   = (1 - y) * r + y * ((r + pi) * (1 - tau_corp * b) - pi),
+      # Calculate gross-up term for "entity"-level income tax 
+      income_tax_gross_up = (1 - tau_entity * z) / (1 - tau_entity),
       
-      # Calculate gross-up term for corporate tax 
-      cit_gross_up = (1 - tau_corp * z) / (1 - tau_corp),
+      # Calculate gross-up term for buyback tax (certain equity-financed C-corp investment only)
+      bb_gross_up = (1 - phi) + 
+                    (phi * (1 - m)) + 
+                    (phi * m) / (1 - (tau_bb * (1 - y) * (legal_form == 'corp'))),
       
-      # Calculate gross-up term for buyback tax 
-      bb_gross_up = (1 - phi) + (phi * (1 - m)) + ((phi * m) / (1 - (tau_bb * (1 - y)))),
+      # Calculate required real before-tax rate of return
+      rho = (discount_rate - pi + delta) * income_tax_gross_up * bb_gross_up - delta,
       
-      # Calculate required before-tax rate of return
-      rho = (r_prime + delta) * cit_gross_up * bb_gross_up - delta,
-      
-      #-------
-      # Saver
-      #-------
+      #---------------------------
+      # Saver: C-corporate equity
+      #---------------------------
       
       # Calculate after-tax return on capital gains attributable to retained earnings
       s_e_kg = log(1 + (exp((r + pi) * n) - 1) * (1 - ((1 - share_death) * share_taxable * tau_kg))) / n - pi,
@@ -71,7 +78,7 @@ calc_metr = function(df, type) {
       # Calculate after-tax return on dividends
       s_e_div = (r + pi) * (1 - share_taxable * tau_div) - pi,
       
-      # Calculate weighted average after-tax return on equity
+      # Calculate weighted average after-tax return on (C-corp) equity
       s_e = (
         
         # Financed by new issuance, paid out as dividends
@@ -80,8 +87,8 @@ calc_metr = function(df, type) {
         # Financed by new issuance, paid out as buybacks
         ((1 - m) * phi * case_when(
           type == 'bb_diff' ~ s_e_bb,
-          type == 'avg'  ~ s_e_kg,
-          T              ~ NA
+          type == 'avg'     ~ s_e_kg,
+          T                 ~ NA
         )) + 
         
         # Financed by retained earnings, paid out as dividends
@@ -91,13 +98,20 @@ calc_metr = function(df, type) {
         (m * phi * s_e_kg)
       
       ),
-
+      
+      #-------------------------
+      # Saver: other situations
+      #-------------------------
+      
       # Calculate after-tax return on debt
       s_d = (r + pi) * (1 - tau_i * share_taxable) - pi,
       
-      # Calculate overall average after-tax return 
-      s = (1 - y) * s_e + y * s_d,
-      
+      # Calculate average after-tax return
+      s = case_when(
+        legal_form == 'corp' ~ (1 - y) * s_e + y * s_d,
+        legal_form == 'pt'   ~ (1 - y) * r   + y * s_d, 
+      ),
+
       #------
       # METR
       #------
@@ -146,37 +160,6 @@ calc_bb_differential = function(df) {
 
 
 
-calc_debt_differential = function(df) {
-  
-  #----------------------------------------------------------------------------
-  # Calculates tax differential between equity finance and debt finance.
-  #
-  # Parameters:
-  # - df (df) : tibble with variables described in calc_metr()
-  #
-  # Returns: tibble with tax differential between debt and equity (df).
-  #----------------------------------------------------------------------------
-  
-  # Calculate METRs under both debt (y = 1) and equity (y = 0) cases
-  debt = df %>% 
-    mutate(y = 1) %>% 
-    calc_metr(type = 'avg') 
-  equity = df %>% 
-    mutate(y = 0) %>% 
-    calc_metr(type = 'avg')
-  
-  # Calculate differential and return
-  df %>% 
-    mutate(
-      y           = NA, 
-      metr_debt   = debt$metr, 
-      metr_equity = equity$metr,
-      bb_differential = metr_debt - metr_equity
-    ) %>% 
-    return()
-}
-
-
 calc_bb_tax_effect = function(df) {
   
   #----------------------------------------------------------------------------
@@ -212,27 +195,24 @@ calc_sensitivity = function(new_values, type) {
   # 
   # Parameters:
   # - new_values (df) : tibble of new values for one or more parameters
-  # - type      (str) : 'avg' or 'bb_diff' or 'debt_diff'
+  # - type      (str) : 'avg' or 'bb_diff'
   #   
   # Returns: tibble of tax rate metrics across all combinations of specified 
   #          parameter values (df).
   #----------------------------------------------------------------------------
   
   # Prepare input data
-  input_data = baseline_param_values %>% 
-    select(-all_of(colnames(new_values))) %>% 
-    expand_grid(new_values)
+  input_data = params
+  if (!is.null(new_values)) {
+    input_data = params %>% 
+      select(-all_of(colnames(new_values))) %>% 
+      expand_grid(new_values)
+  }
   
   # Buyback-dividend differential  
   if (type == 'bb_diff') {
     input_data %>% 
       calc_bb_differential() %>% 
-      return()
-    
-  # Debt-equity differential
-  } else if (type == 'debt_diff') {
-    input_data %>% 
-      calc_debt_differential() %>% 
       return()
     
   # Effect of the buyback excise tax on the overall METR
