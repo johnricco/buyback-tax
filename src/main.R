@@ -13,7 +13,7 @@ baseline_params = tibble(
   pi            = 0.0224,
   m             = 0.5, 
   phi           = 0.6, 
-  share_taxable = 0.42, 
+  share_taxable = 0.5842, 
   share_death   = 0.4316, 
   n             = 9.1096 * (1 - 0.4316 - 0.0286) / (1 - 0.4316) + 0.345 * 0.0286 / (1 - 0.4316), 
   tau_bb        = 0.01,
@@ -58,7 +58,7 @@ params %>%
 
 
 # Buyback-dividend differential
-bb_differential = tibble(tau_bb = seq(0, 0.04, 0.001)) %>% 
+bb_differential = tibble(tau_bb = seq(0, 0.06, 0.001)) %>% 
   calc_sensitivity(type = 'bb_diff') %>% 
   filter(law == 'current_law', legal_form == 'corp', financing == 'equity') %>% 
   group_by(tau_bb) %>% 
