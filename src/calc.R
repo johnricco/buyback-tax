@@ -5,17 +5,62 @@
 #------------------------------------------------------------------------------
 
 
+calc_rho = function(input_df) {
+  
+  #----------------------------------------------------------------------------
+  # Calculates required before-tax rate of return.
+  # 
+  # Parameters:
+  # - input_df (df)  : tibble with the following variables: 
+  #   - legal_form    (str) : 'corp' (C corporation) or 'pt' (pass-through)
+  #   - financing     (str) : 'equity' or 'debt' or 'avg'
+  #   - pi            (dbl) : expected inflation rate
+  #   - discount_rate (dlb) : r + pi, adjusted for tax treatment of debt financing 
+  #   - delta         (dbl) : economic depreciation rate
+  #   - z             (dbl) : present value of depreciation deductions
+  #   - tau_entity    (dbl) : corporate tax rate for C-corp financing; average effective marginal rate on pass-through income otherwise
+  # 
+  # Returns: tibble with rho and intermediate calculations (df).
+  #----------------------------------------------------------------------------
+  
+  input_df %>% 
+    mutate(
+      
+      # Set variable for debt share of financing 
+      y = case_when(
+        financing == 'equity' ~ 0, 
+        financing == 'debt'   ~ 1, 
+        financing == 'avg'    ~ 0.3
+      ),
+      
+      # Calculate gross-up term for "entity"-level income tax 
+      income_tax_gross_up = (1 - tau_entity * z) / (1 - tau_entity),
+      
+      # Calculate gross-up term for buyback tax (certain equity-financed C-corp investment only)
+      bb_gross_up = (1 - phi) + 
+        (phi * (1 - m)) + 
+        (phi * m) / (1 - (tau_bb * (1 - y) * (legal_form == 'corp'))),
+      
+      # Calculate required real before-tax rate of return
+      rho = (discount_rate - pi + delta) * income_tax_gross_up * bb_gross_up - delta,
+    
+    ) %>%
+    return()
+}
 
-calc_metr = function(df, type) {
+
+
+calc_metr = function(input_df, type) {
   
   #----------------------------------------------------------------------------
   # Calculates marginal effective tax rate on the marginal corporate 
   # investment.
   # 
   # Parameters:
-  # - df (df)  : tibble with the following variables: 
+  # - input_df (df)  : tibble with the following variables: 
   #   - legal_form    (str) : 'corp' (C corporation) or 'pt' (pass-through)
   #   - financing     (str) : 'equity' or 'debt' or 'avg'
+  #   - rho           (dbl) : firm's pre-tax rate of return
   #   - r             (dbl) : real rate of return
   #   - pi            (dbl) : expected inflation rate
   #   - discount_rate (dlb) : r + pi, adjusted for tax treatment of debt financing 
@@ -38,30 +83,8 @@ calc_metr = function(df, type) {
   # Returns: tibble with METR and intermediate calculations (df).
   #----------------------------------------------------------------------------
   
-  df %>% 
+  input_df %>% 
     mutate(
-      
-      # Set variable for debt share of financing 
-      y = case_when(
-        financing == 'equity' ~ 0, 
-        financing == 'debt'   ~ 1, 
-        financing == 'avg'    ~ 0.3
-      ),
-      
-      #------
-      # Firm
-      #------
-      
-      # Calculate gross-up term for "entity"-level income tax 
-      income_tax_gross_up = (1 - tau_entity * z) / (1 - tau_entity),
-      
-      # Calculate gross-up term for buyback tax (certain equity-financed C-corp investment only)
-      bb_gross_up = (1 - phi) + 
-                    (phi * (1 - m)) + 
-                    (phi * m) / (1 - (tau_bb * (1 - y) * (legal_form == 'corp'))),
-      
-      # Calculate required real before-tax rate of return
-      rho = (discount_rate - pi + delta) * income_tax_gross_up * bb_gross_up - delta,
       
       #---------------------------
       # Saver: C-corporate equity
@@ -127,102 +150,4 @@ calc_metr = function(df, type) {
 }
 
 
-calc_bb_differential = function(df) {
-  
-  #----------------------------------------------------------------------------
-  # Calculates tax differential between buybacks and dividends conditional, 
-  # all else equal.
-  #
-  # Parameters:
-  # - df (df) : tibble with variables described in calc_metr()
-  #
-  # Returns: tibble with tax differential between buybacks and dividends (df).
-  #----------------------------------------------------------------------------
-  
-  # Calculate METRs under both buyback (phi = 1) and dividend (phi = 0) cases
-  bb = df %>% 
-    mutate(phi = 1) %>% 
-    calc_metr(type = 'bb_diff') 
-  div = df %>% 
-    mutate(phi = 0) %>% 
-    calc_metr(type = 'bb_diff')
-  
-  # Calculate differential and return
-  df %>% 
-    mutate(
-      phi      = NA, 
-      metr_bb  = bb$metr, 
-      metr_div = div$metr,
-      bb_differential = metr_bb - metr_div
-    ) %>% 
-    return()
-}
 
-
-
-calc_bb_tax_effect = function(df) {
-  
-  #----------------------------------------------------------------------------
-  # Calculates effect of the 1% buyback excise tax on the METR for a given set
-  # of all-else-equal parameters.
-  # 
-  # Parameters:
-  # - df (df) : tibble with variables described in calc_metr()
-  #   
-  # Returns: tibble with column for the buyback tax effect (df).
-  #----------------------------------------------------------------------------
-  
-  # Calculate METRs under 0% and 1% excise taxes
-  without = calc_metr(df %>% mutate(tau_bb = 0),    'avg')$metr
-  with    = calc_metr(df %>% mutate(tau_bb = 0.01), 'avg')$metr
-  
-  # Calculate difference, add to data, and return
-  df %>% 
-    mutate(
-      metr_without  = without, 
-      metr_with     = with, 
-      bb_tax_effect = metr_with - metr_without) %>% 
-    return()
-}
-
-
-
-calc_sensitivity = function(new_values, type) {
-  
-  #----------------------------------------------------------------------------
-  # Calculates tax rate metrics across a user-supplied range of non-baseline 
-  # values for one or more parameters, all else equal.
-  # 
-  # Parameters:
-  # - new_values (df) : tibble of new values for one or more parameters
-  # - type      (str) : 'avg' or 'bb_diff'
-  #   
-  # Returns: tibble of tax rate metrics across all combinations of specified 
-  #          parameter values (df).
-  #----------------------------------------------------------------------------
-  
-  # Prepare input data
-  input_data = params
-  if (!is.null(new_values)) {
-    input_data = params %>% 
-      select(-all_of(colnames(new_values))) %>% 
-      expand_grid(new_values)
-  }
-  
-  # Buyback-dividend differential  
-  if (type == 'bb_diff') {
-    input_data %>% 
-      calc_bb_differential() %>% 
-      return()
-    
-  # Effect of the buyback excise tax on the overall METR
-  } else if (type == 'avg') {
-    input_data %>% 
-      calc_bb_tax_effect() %>% 
-      return()
-    
-    # Invalid input  
-  } else {
-    return(NA)
-  }
-}

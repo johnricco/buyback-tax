@@ -8,15 +8,15 @@ library(tidyverse)
 source('./src/calc.R')
 
 # Set baseline parameter values which don't vary with TCJA law
-baseline_params = tibble(
+baseline_params = expand_grid(
   r             = 0.0821 - 0.0224, 
   pi            = 0.0224,
   m             = 0.5, 
-  phi           = 0.6, 
-  share_taxable = 0.5842, 
+  phi           = c(0, 0.6, 1),
+  share_taxable = c(0, 0.5842, 1), 
   share_death   = 0.4316, 
   n             = 9.1096 * (1 - 0.4316 - 0.0286) / (1 - 0.4316) + 0.345 * 0.0286 / (1 - 0.4316), 
-  tau_bb        = 0.01,
+  tau_bb        = seq(0, 0.1, 0.005),
   tau_div       = 0.2041, 
   tau_kg        = 0.2041
 )
@@ -24,125 +24,125 @@ baseline_params = tibble(
 # Read scenario-specific parameters
 scenario_params = read_csv('./resources/scenario_values.csv')
 
-# Create table of parameters
+# Create overall table of parameters
 params = scenario_params %>% 
   expand_grid(baseline_params)
 
 
-#--------------
-# Calculations
-#--------------
+#-------------------------
+# Firm-level calculations
+#-------------------------
+
+# Calculate all possible before-tax rates of return, including overall asset-weighted average
+params_with_rho = params %>% 
+  calc_rho() %>% 
+  bind_rows(
+    (.) %>% 
+      group_by(law, legal_form, financing, tau_bb, phi, share_taxable) %>% 
+      summarise(
+        asset_type = 'All', 
+        across(
+          .cols = -c(asset_type, asset_share), 
+          .fns  = ~ weighted.mean(., asset_share)
+        ), 
+        asset_share = 1,
+        .groups = 'drop'
+      )
+  ) %>% 
+  arrange(law, legal_form, desc(financing), asset_type) 
+
+
+#-------------------
+# METR calculations
+#-------------------
 
 # Overall METR 
-params %>% 
+params_with_rho %>% 
+  filter(tau_bb == 0.01, phi == 0.6) %>%
   calc_metr('avg') %>% 
-  group_by(
-    law, legal_form, financing
-  ) %>% 
-  summarise(
-    metr = weighted.mean(metr, share)
-  )
+  filter(asset_type == 'All') %>% 
+  select(law, legal_form, financing, wedge, metr)
 
 
 # Effect of buyback tax
-params %>%
-  filter(legal_form == 'corp', financing == 'equity') %>% 
-  calc_bb_tax_effect() %>% 
-  group_by(law) %>% 
-  summarise(
-    across(
-      .cols = c('metr_with', 'metr_without', 'bb_tax_effect'), 
-      .fns  = ~ weighted.mean(., share) 
-    ) 
-  )
+params_with_rho %>%
+  calc_metr('avg') %>% 
+  filter(
+    phi == 0.6, 
+    share_taxable == 0.5842,
+    tau_bb %in% c(0, 0.01),
+    legal_form == 'corp', 
+    financing  == 'equity',
+    asset_type == 'All'
+  ) %>% 
+  select(law, name = tau_bb, value = metr) %>% 
+  pivot_wider() %>% 
+  mutate(delta = `0.01` - `0`)
 
 
 # Buyback-dividend differential
-bb_differential = tibble(tau_bb = seq(0, 0.06, 0.001)) %>% 
-  calc_sensitivity(type = 'bb_diff') %>% 
-  filter(law == 'current_law', legal_form == 'corp', financing == 'equity') %>% 
-  group_by(tau_bb) %>% 
-  summarise(
-    across(
-      .cols = c('metr_bb', 'metr_div', 'bb_differential'), 
-      .fns  = ~ weighted.mean(., share) 
-    ), 
-    .groups = 'drop'
-  )
-
-bb_differential %>%
-  filter(tau_bb %in% c(0, 0.01)) %>% 
-  mutate(percent_change = 1 - bb_differential / lag(bb_differential))
-
-# Buyback-dividend differential across taxable status
-bb_differential_taxable_status = expand_grid(tau_bb = seq(0, 0.1, 0.001), share_taxable = c(0, 1)) %>% 
-  calc_sensitivity(type = 'bb_diff') %>% 
-  filter(law == 'current_law', legal_form == 'corp', financing == 'equity') %>% 
-  group_by(taxable = share_taxable == 1, tau_bb) %>% 
-  summarise(
-    across(
-      .cols = c('metr_bb', 'metr_div', 'bb_differential'), 
-      .fns  = ~ weighted.mean(., share) 
-    ), 
-    .groups = 'drop'
-  ) 
-
-bb_differential_taxable_status %>%
-  filter(tau_bb %in% c(0, 0.01))
-
+params_with_rho %>% 
+  filter(
+    phi == 0 | phi == 1,
+    law        == 'current_law', 
+    legal_form == 'corp', 
+    financing  == 'equity',
+    asset_type == 'All'
+  ) %>% 
+  calc_metr(type = 'bb_diff') %>% 
+  mutate(name = if_else(phi == 0, 'div', 'bb')) %>% 
+  select(tau_bb, share_taxable, name, value = metr) %>% 
+  pivot_wider() %>% 
+  mutate(delta = bb - div) %>% 
+  print(n = 65)
 
 
 # Debt-equity differential  
-calc_sensitivity(NULL, 'avg') %>% 
-  filter(legal_form == 'corp', financing != 'avg') %>%
-  group_by(
-    law, financing
+params_with_rho %>% 
+  filter(
+    phi           == 0.6, 
+    share_taxable == 0.5842, 
+    tau_bb      %in% c(0, 0.01), 
+    legal_form    == 'corp', 
+    financing     != 'avg', 
+    asset_type    == 'All'
   ) %>% 
-  summarise(
-    across(
-      .cols = c('metr_without', 'metr_with'), 
-      .fns  = ~ weighted.mean(., share) 
-    ), 
-    .groups = 'drop'
-  ) %>% 
-  pivot_longer(cols = starts_with('metr')) %>% 
-  pivot_wider(names_from = financing) %>% 
-  mutate(debt_advantage = equity - debt) %>% 
-  group_by(law) %>%
-  mutate(
-    bb_tax_effect_pp  = debt_advantage - lag(debt_advantage),
-    bb_tax_effect_pct = debt_advantage / lag(debt_advantage) - 1
-  )
-
+  calc_metr('avg') %>% 
+  select(law, name = financing, tau_bb, value = metr) %>% 
+  pivot_wider() %>% 
+  mutate(differential = debt - equity)
+  
 
 # Legal form differential
-calc_sensitivity(NULL, 'avg') %>% 
-  filter(financing == 'avg') %>%
-  group_by(
-    law, legal_form
+params_with_rho %>% 
+  filter(
+    phi           == 0.6, 
+    share_taxable == 0.5842, 
+    tau_bb      %in% c(0, 0.01), 
+    financing     != 'debt', 
+    asset_type    == 'All'
   ) %>% 
-  summarise(
-    across(
-      .cols = c('metr_without', 'metr_with'), 
-      .fns  = ~ weighted.mean(., share) 
-    ), 
-    .groups = 'drop'
-  ) %>% 
-  pivot_longer(cols = starts_with('metr')) %>% 
-  pivot_wider(names_from = legal_form) %>% 
-  mutate(pt_advantage = corp - pt) %>% 
-  group_by(law) %>%
-  mutate(
-    bb_tax_effect_pp  = pt_advantage - lag(pt_advantage),
-    bb_tax_effect_pct = pt_advantage / lag(pt_advantage) - 1
-  )
+  calc_metr('avg') %>% 
+  select(law, name = legal_form, financing, tau_bb, value = metr) %>% 
+  pivot_wider() %>% 
+  mutate(differential = corp - pt)
   
 
 # Effect of buyback tax on different assets' METR
-calc_sensitivity(NULL, 'avg') %>% 
-  filter(law == 'current_law', legal_form == 'corp', financing != 'debt') %>%
-  select(financing, asset_type, metr_with, metr_without, bb_tax_effect) %>% 
-  mutate(bb_tax_effect_pct = bb_tax_effect / metr_with) %>% 
+params_with_rho %>% 
+  filter(
+    phi           == 0.6, 
+    share_taxable == 0.5842, 
+    tau_bb      %in% c(0, 0.01), 
+    law           == 'current_law', 
+    legal_form    == 'corp',
+    financing     != 'debt', 
+    asset_type    != 'All'
+  ) %>% 
+  calc_metr('avg') %>% 
+  select(financing, asset_type, name = tau_bb, value = metr) %>% 
+  pivot_wider() %>% 
+  mutate(bb_tax_effect = `0.01` - `0`) %>% 
   group_by(financing) %>% 
   arrange(-bb_tax_effect, .by_group = T)
   
