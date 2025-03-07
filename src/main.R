@@ -5,6 +5,7 @@
 #------------------------------------------------------------------------------
 
 library(tidyverse)
+library(Hmisc)
 source('./src/calc.R')
 
 # Set baseline parameter values which don't vary with TCJA law
@@ -129,25 +130,32 @@ params_with_rho %>%
   
 
 # Effect of buyback tax on different assets' METR
-params_with_rho %>% 
+by_asset = params_with_rho %>% 
   filter(
-    phi           == 0.6, 
+    phi           == 1, 
     share_taxable == 0.5842, 
-    tau_bb      %in% c(0, 0.01), 
-    law           == 'current_law', 
+    tau_bb      %in% c(0, 0.01),  
     legal_form    == 'corp',
-    financing     != 'debt', 
+    financing     == 'equity', 
     asset_type    != 'All'
   ) %>% 
-  calc_metr('avg') %>% 
-  select(financing, asset_type, name = tau_bb, value = metr) %>% 
+  calc_metr('bb_diff') %>% 
+  select(law, financing, asset_type, name = tau_bb, value = metr) %>% 
   pivot_wider() %>% 
   mutate(bb_tax_effect = `0.01` - `0`) %>% 
-  group_by(financing) %>% 
-  arrange(-bb_tax_effect, .by_group = T)
-  
+  group_by(law) %>% 
+  arrange(-bb_tax_effect, .by_group = T) %>% 
+  ungroup()
 
-
-
-
+by_asset %>% 
+  left_join(
+    params %>% 
+      distinct(asset_type, asset_share), 
+    by = 'asset_type'
+  ) %>% 
+  group_by(law) %>% 
+  summarise(
+    stdev_without = weighted.var(`0`,    asset_share) ^ 0.5,
+    stdev_with    = weighted.var(`0.01`, asset_share) ^ 0.5,
+  )
 
